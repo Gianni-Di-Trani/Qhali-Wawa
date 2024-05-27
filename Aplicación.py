@@ -155,12 +155,12 @@ class PatientInfoScreen(Screen):
         layout.add_widget(title_label)
 
         # Botón para ecógrafo Siemens
-        siemens_button = ImageButton(source="12687-2-siemens-acuson-p500-cart.jpg", size_hint=(None, None), width=150, height=150, pos_hint={'center_x': 0.5, 'center_y': 0.5})
+        siemens_button = ImageButton(source="siemens", size_hint=(None, None), width=150, height=150, pos_hint={'center_x': 0.5, 'center_y': 0.5})
         siemens_button.bind(on_press=lambda x: self.change_screen('siemens_screen_1'))
         layout.add_widget(siemens_button)
 
         # Botón para ecógrafo Dräger
-        drager_button = ImageButton(source="philips-clearvue-550.jpg", size_hint=(None, None), width=150, height=150, pos_hint={'center_x': 0.5, 'center_y': 0.5})
+        drager_button = ImageButton(source="philips", size_hint=(None, None), width=150, height=150, pos_hint={'center_x': 0.5, 'center_y': 0.5})
         drager_button.bind(on_press=lambda x: self.change_screen('drager_screen_1'))
         layout.add_widget(drager_button)
 
