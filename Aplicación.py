@@ -1,6 +1,6 @@
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.screenmanager import ScreenManager, Screen
+from kivy.uix.screenmanager import ScreenManager, Screen, NoTransition
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.label import Label
@@ -11,11 +11,12 @@ from kivy.uix.behaviors import ButtonBehavior
 from kivy.uix.popup import Popup
 from kivy.uix.dropdown import DropDown
 from kivy.uix.widget import Widget
+from kivy.animation import Animation
 import os
 import cv2
 import numpy as np
 from kivy.graphics.texture import Texture
-from kivy.graphics import Color, Rectangle
+from kivy.graphics import Color, Rectangle, Ellipse
 from kivy.clock import Clock
 from kivy.uix.togglebutton import ToggleButton
 import gspread
@@ -133,16 +134,16 @@ class PatientInfoScreen(Screen):
         layout = BoxLayout(orientation='vertical', padding=70, spacing=70)
 
         # Botón con imagen de usuario
-        self.user_button = ImageButton(source='user_icon.png', size_hint=(None, None), size=(50, 50), pos_hint={'center_x': 0.1, 'center_y': 1})
+        self.user_button = ImageButton(source='user_icon.png', size_hint=(None, None), size=(200, 50), pos_hint={'center_x': 0.1, 'center_y': 1})
         self.user_button.bind(on_press=self.open_dropdown)
         layout.add_widget(self.user_button)
 
         # Crear el dropdown
         self.dropdown = DropDown()
 
-        # Botón para cambiar contraseña
-        change_password_button = Button(text='Cambiar contraseña', size_hint=(0.3, None), height=44, pos_hint={'center_x': 0.1, 'center_y': 0.8})
-        change_password_button.bind(on_release=self.go_to_change_password)
+        # Botón para cambiar datos
+        change_password_button = Button(text='Cambiar datos', size_hint=(0.3, None), height=44, pos_hint={'center_x': 0.1, 'center_y': 0.8})
+        change_password_button.bind(on_release=self.go_to_edit_data)
         self.dropdown.add_widget(change_password_button)
 
         # Botón para cerrar sesión
@@ -154,16 +155,28 @@ class PatientInfoScreen(Screen):
         title_label = Label(text='¡Bienvenido! Elija un ecógrafo:', size_hint=(None, None), size=(50, 50), pos_hint={'center_x': 0.5, 'center_y': 0.5}, color=(0, 0, 0, 1))
         layout.add_widget(title_label)
 
-        # Botón para ecógrafo Siemens
-        siemens_button = ImageButton(source="siemens", size_hint=(None, None), width=150, height=150, pos_hint={'center_x': 0.5, 'center_y': 0.5})
+        # Layout para ecógrafos
+        ecograph_layout = BoxLayout(orientation='vertical', spacing=20, size_hint=(1, 0.8))
+
+        # Siemens
+        siemens_layout = BoxLayout(orientation='vertical', size_hint=(None, None), size=(200, 200), pos_hint={'center_x': 0.5})
+        siemens_image = Image(source="siemens.jpg", size_hint=(None, None), size=(200, 150))
+        siemens_layout.add_widget(siemens_image)
+        siemens_button = Button(text="Siemens ACUSON P500", size_hint=(None, None), size=(200, 50))
         siemens_button.bind(on_press=lambda x: self.change_screen('siemens_screen_1'))
-        layout.add_widget(siemens_button)
+        siemens_layout.add_widget(siemens_button)
+        ecograph_layout.add_widget(siemens_layout)
 
-        # Botón para ecógrafo Dräger
-        drager_button = ImageButton(source="philips", size_hint=(None, None), width=150, height=150, pos_hint={'center_x': 0.5, 'center_y': 0.5})
-        drager_button.bind(on_press=lambda x: self.change_screen('drager_screen_1'))
-        layout.add_widget(drager_button)
+        # Philips
+        philips_layout = BoxLayout(orientation='vertical', size_hint=(None, None), size=(200, 200), pos_hint={'center_x': 0.5})
+        philips_image = Image(source="philips.jpg", size_hint=(None, None), size=(200, 150))
+        philips_layout.add_widget(philips_image)
+        philips_button = Button(text="Philips ClearVue 550", size_hint=(None, None), size=(200, 50))
+        philips_button.bind(on_press=lambda x: self.change_screen('philips_screen_1'))
+        philips_layout.add_widget(philips_button)
+        ecograph_layout.add_widget(philips_layout)
 
+        layout.add_widget(ecograph_layout)
         self.add_widget(layout)
 
     def open_dropdown(self, instance):
@@ -174,16 +187,142 @@ class PatientInfoScreen(Screen):
         self.manager.transition.direction = 'right'
         self.manager.current = 'login_screen'
 
-    def go_to_change_password(self, instance):
+    def go_to_edit_data(self, instance):
         self.dropdown.dismiss()
-        self.manager.type = 'password'
-        self.manager.transition.direction = 'right'
-        self.manager.current = 'two_step_verification_screen'
+        self.manager.transition.direction = 'left'
+        self.manager.current = 'edit_data_screen'
         
     def change_screen(self, screen_name):
         self.manager.transition.direction = 'left'
         self.manager.current = screen_name
+
+class EditDataScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        layout = FloatLayout(size=Window.size)
+        Window.clearcolor = (248/255, 248/255, 248/255, 1)  # Fondo #F8F8F8
+
+        # Flecha de regreso
+        back_arrow = ImageButton(source='flecha.png', size_hint=(None, None), size=(50, 50), pos_hint={'center_x': 0.1, 'center_y': 0.9})
+        back_arrow.bind(on_press=self.go_to_patient_info)
+        layout.add_widget(back_arrow)
+
+        # Título cambiar datos
+        edit_data_label = Label(text='Cambiar Datos', size_hint=(None, None), size=(Window.width, 50), pos_hint={'center_x': 0.5, 'center_y': 0.9}, color=(0, 0, 0, 1))
+        layout.add_widget(edit_data_label)
         
+        # Logo
+        logo = Image(source='logo.png', size_hint=(None, None), size=(130, 130), pos_hint={'center_x': 0.5, 'center_y': 0.76})
+        layout.add_widget(logo)
+
+        # Nombres y apellidos
+        self.name_input = TextInput(hint_text='Nombre Completo', size_hint=(0.76, None), height=44, pos_hint={'center_x': 0.5, 'center_y': 0.6})
+        layout.add_widget(self.name_input)
+
+        # Error nombres y apellidos
+        self.error_name = Label(text='', size_hint=(None, None), size=(300, 44), pos_hint={'center_x': 0.5, 'y': 0.52}, color=(1, 0, 0, 1))  # Color del mensaje de error rojo
+        layout.add_widget(self.error_name)
+
+        # Correo electrónico
+        self.email = TextInput(hint_text='Correo Electrónico', size_hint=(0.76, None), height=44, pos_hint={'center_x': 0.5, 'center_y': 0.5})
+        layout.add_widget(self.email)
+
+        # Error correo electrónico
+        self.error_email = Label(text='', size_hint=(None, None), size=(300, 44), pos_hint={'center_x': 0.5, 'y': 0.42}, color=(1, 0, 0, 1))  # Color del mensaje de error rojo
+        layout.add_widget(self.error_email)
+        
+        # Contraseña
+        self.password = TextInput(hint_text='Contraseña', password=True, size_hint=(0.76, None), height=44, pos_hint={'center_x': 0.5, 'center_y': 0.4})
+        layout.add_widget(self.password)
+
+        # Botón de ojo para mostrar/ocultar contraseña
+        self.show_password_button = ToggleButton(text='Mostrar', size_hint=(0.1, 0.05), pos_hint={'center_x': 0.95, 'center_y': 0.4})
+        self.show_password_button.bind(on_press=self.toggle_password_visibility)
+        layout.add_widget(self.show_password_button)
+        
+        # Error contraseña
+        self.error_password = Label(text='', size_hint=(None, None), size=(300, 44), pos_hint={'center_x': 0.5, 'center_y': 0.35}, color=(1, 0, 0, 1))  # Color del mensaje de error rojo
+        layout.add_widget(self.error_password)
+
+        # Repetir contraseña
+        self.confirm_password = TextInput(hint_text='Repetir Contraseña', password=True, size_hint=(0.76, None), height=44, pos_hint={'center_x': 0.5, 'center_y': 0.3})
+        layout.add_widget(self.confirm_password)
+
+        # Botón de guardar
+        save_button = Button(text="Guardar", size_hint=(0.76, None), height=44, pos_hint={'center_x': 0.5, 'center_y': 0.2}, background_normal='', background_color = (93/255, 161/255, 163/255, 1))  # Botón con fondo #8FC5AB
+        save_button.bind(on_press=self.save_changes)
+        layout.add_widget(save_button)
+
+        # Error repetir contraseña
+        self.error_confirm_password = Label(text='', size_hint=(None, None), size=(300, 44), pos_hint={'center_x': 0.5, 'y': 0.1}, color=(1, 0, 0, 1))  # Color del mensaje de error rojo
+        layout.add_widget(self.error_confirm_password)
+
+        self.add_widget(layout)
+        self.error = [0]*5
+        
+    def on_pre_enter(self, *args):
+        # Rellenar campos con datos actuales del usuario
+        current_user = self.manager.database[-1]
+        self.name_input.text = current_user[0]
+        self.email.text = current_user[1]
+        self.password.text = current_user[2]
+        self.confirm_password.text = current_user[2]
+
+    def go_to_patient_info(self, instance):
+        self.clear_fields()
+        self.manager.transition.direction = 'right'
+        self.manager.current = 'patient_info_screen'
+
+    def clear_fields(self):
+        self.name_input.text = ''
+        self.email.text = ''
+        self.password.text = ''
+        self.confirm_password.text = ''
+        self.error_name.text = ''
+        self.error_email.text = ''
+        self.error_password.text = ''
+        self.error_confirm_password.text = ''
+        self.password.password = True
+        self.show_password_button.text = 'Mostrar'
+        self.show_password_button.state = 'normal'
+        
+    def toggle_password_visibility(self, instance):
+        if self.password.password:
+            self.password.password = False
+            self.show_password_button.text = 'Ocultar'
+            self.confirm_password.password = False
+        else:
+            self.password.password = True
+            self.show_password_button.text = 'Mostrar'
+            self.confirm_password.password = True
+        
+    def save_changes(self, instance):
+        name = self.name_input.text
+        email = self.email.text
+        password = self.password.text
+        confirm_password = self.confirm_password.text
+        current_user = self.manager.database[-1]
+
+        errors, error_messages = self.manager.validate_fields(name, email, password, confirm_password, current_email=current_user[1])
+
+        self.error_name.text = error_messages[1]
+        self.error_email.text = error_messages[2]
+        self.error_password.text = error_messages[3]
+        self.error_confirm_password.text = error_messages[4]
+
+        if not any(errors):
+            data = self.manager.database[-1]
+            data[4:6] = list(map(int, data[4:6]))
+            self.manager.sheet.delete_rows(len(self.manager.database)+1)
+            self.manager.sheet.append_row(data)
+            self.manager.sheet.append_row([name, email, password, None, 1, 1])
+            self.manager.database = self.manager.sheet.get_all_values()
+            self.manager.database.pop(0)
+            self.clear_fields()
+            self.manager.type = 'edit_data'
+            self.manager.transition.direction = 'left'
+            self.manager.current = 'two_step_verification_screen'
+
 # Pantalla para el ecógrafo Siemens
 class SiemensScreen1(Screen):
     def __init__(self, **kwargs):
@@ -198,7 +337,8 @@ class SiemensScreen1(Screen):
         # Título
         title = Label(text='Tutorial\nEncendido del Ecógrafo e Inicio de Sesión', size_hint=(1, None), height=50, color=(0, 0, 0, 1), font_size='20sp', halign='center')
         title.bind(size=title.setter('text_size'))  # Permite que el tamaño del texto se ajuste al tamaño del widget
-
+        layout.add_widget(title)
+        
         # Imagen de botón de encendido
         on_off_button = Image(source='Botón de encendido.png', size_hint=(None, None), size=(600, 400), pos_hint={'center_x': 0.5, 'center_y': 0.76})
         layout.add_widget(on_off_button)
@@ -206,18 +346,36 @@ class SiemensScreen1(Screen):
         # Descripción con ajuste de texto
         description = Label(text='Presione el botón de encendido. \nPara iniciar sesión, escriba "admin" en user y haga click izquierdo en el botón "ok".', size_hint=(1, None), halign='center', valign='middle', text_size=(self.width - 20, None), color=(0, 0, 0, 1), font_size='16sp')
         description.bind(size=description.setter('text_size'))  # Actualiza el tamaño del texto cuando el tamaño del Label cambia
-
+        layout.add_widget(description)
+        
         # Botón para la siguiente instrucción
         next_instruction_button = Button(text="Siguiente Instrucción", size_hint=(None, None), width=200, height=40, pos_hint={'center_x': 0.5, 'center_y': 0.1})
         next_instruction_button.bind(on_press=self.next_instruction)
-
-        # Añadir widgets al layout
-        layout.add_widget(title)
-        layout.add_widget(description)
         layout.add_widget(next_instruction_button)
+        
+        # Barra de navegación
+        nav_layout = BoxLayout(orientation='horizontal', size_hint=(None, None), height=20, width=200, spacing=20, pos_hint={'center_x': 0.565})  # Ajusta el valor de spacing aquí
+        self.nav_circles = []
+        for i in range(1, 5):
+            circle = NavCircle(screen_name=f'siemens_screen_{i}', manager=self.manager, size_hint=(None, None), size=(15, 15))
+            self.nav_circles.append(circle)
+            nav_layout.add_widget(circle)
+        layout.add_widget(nav_layout)
 
         self.add_widget(layout)
+
+    def on_pre_enter(self, *args):
+        self.update_nav_circles(0)
+
+    def update_nav_circles(self, active_index):
+        for i, circle in enumerate(self.nav_circles):
+            circle.set_active(i == active_index)
         
+    def on_touch_move(self, touch):
+        if touch.dx < -50:  # deslizar a la izquierda
+            self.manager.transition.direction = 'left'
+            self.manager.current = 'siemens_screen_2'
+    
     def next_instruction(self, instance):
         self.manager.transition.direction = 'left'
         self.manager.current = 'siemens_screen_2'
@@ -235,7 +393,8 @@ class SiemensScreen2(Screen):
         # Título
         title = Label(text='Tutorial\nRegistro del paciente', size_hint=(1, None), height=50, color=(0, 0, 0, 1), font_size='20sp', halign='center')
         title.bind(size=title.setter('text_size'))  # Permite que el tamaño del texto se ajuste al tamaño del widget
-
+        layout.add_widget(title)
+        
         # Imagen de botón de encendido
         patient_button = Image(source='Botón de patient.png', size_hint=(None, None), size=(600, 400), pos_hint={'center_x': 0.5, 'center_y': 0.76})
         layout.add_widget(patient_button)
@@ -243,6 +402,7 @@ class SiemensScreen2(Screen):
         # Descripción con ajuste de texto
         description = Label(text='Presione el botón "Patient" y registre los datos del paciente, luego haga click izquierdo en el botón "ok".', size_hint=(1, None), halign='center', valign='middle', text_size=(self.width - 20, None), color=(0, 0, 0, 1), font_size='16sp')
         description.bind(size=description.setter('text_size'))  # Actualiza el tamaño del texto cuando el tamaño del Label cambia
+        layout.add_widget(description)
         
         # Botón para la instrucción anterior
         previous_instruction_button = Button(text="Instrucción Anterior", size_hint=(None, None), width=200, height=40)
@@ -257,14 +417,34 @@ class SiemensScreen2(Screen):
         button_container.add_widget(previous_instruction_button)
         button_container.add_widget(Widget())  # Espaciador
         button_container.add_widget(next_instruction_button)
-
-        # Añadir widgets al layout
-        layout.add_widget(title)
-        layout.add_widget(description)
         layout.add_widget(button_container)
 
+        # Barra de navegación
+        nav_layout = BoxLayout(orientation='horizontal', size_hint=(None, None), height=20, width=200, spacing=20, pos_hint={'center_x': 0.565})  # Ajusta el valor de spacing aquí
+        self.nav_circles = []
+        for i in range(1, 5):
+            circle = NavCircle(screen_name=f'siemens_screen_{i}', manager=self.manager, size_hint=(None, None), size=(15, 15))
+            self.nav_circles.append(circle)
+            nav_layout.add_widget(circle)
+        layout.add_widget(nav_layout)
+        
         self.add_widget(layout)
 
+    def on_pre_enter(self, *args):
+        self.update_nav_circles(1)
+
+    def update_nav_circles(self, active_index):
+        for i, circle in enumerate(self.nav_circles):
+            circle.set_active(i == active_index)
+    
+    def on_touch_move(self, touch):
+        if touch.dx > 50:  # deslizar a la derecha
+            self.manager.transition.direction = 'right'
+            self.manager.current = 'siemens_screen_1'
+        elif touch.dx < -50:  # deslizar a la izquierda
+            self.manager.transition.direction = 'left'
+            self.manager.current = 'siemens_screen_3'
+    
     def previous_instruction(self, instance):
         self.manager.transition.direction = 'right'
         self.manager.current = 'siemens_screen_1'
@@ -281,7 +461,8 @@ class SiemensScreen3(Screen):
         # Título
         title = Label(text='Tutorial\nSelección de preajuste', size_hint=(1, None), height=50, color=(0, 0, 0, 1), font_size='20sp', halign='center')
         title.bind(size=title.setter('text_size'))  # Permite que el tamaño del texto se ajuste al tamaño del widget
-
+        layout.add_widget(title)
+        
         # Imagen de botón de encendido
         patient_button = Image(source='Botón de exam.png', size_hint=(None, None), size=(600, 400), pos_hint={'center_x': 0.5, 'center_y': 0.76})
         layout.add_widget(patient_button)
@@ -289,6 +470,7 @@ class SiemensScreen3(Screen):
         # Descripción con ajuste de texto
         description = Label(text='Presione el botón "Exam" y elija el preajuste adecuado.', size_hint=(1, None), halign='center', valign='middle', text_size=(self.width - 20, None), color=(0, 0, 0, 1), font_size='16sp')
         description.bind(size=description.setter('text_size'))  # Actualiza el tamaño del texto cuando el tamaño del Label cambia
+        layout.add_widget(description)
         
         # Botón para la instrucción anterior
         previous_instruction_button = Button(text="Instrucción Anterior", size_hint=(None, None), width=200, height=40)
@@ -303,14 +485,34 @@ class SiemensScreen3(Screen):
         button_container.add_widget(previous_instruction_button)
         button_container.add_widget(Widget())  # Espaciador
         button_container.add_widget(next_instruction_button)
-
-        # Añadir widgets al layout
-        layout.add_widget(title)
-        layout.add_widget(description)
         layout.add_widget(button_container)
+
+        # Barra de navegación
+        nav_layout = BoxLayout(orientation='horizontal', size_hint=(None, None), height=20, width=200, spacing=20, pos_hint={'center_x': 0.565})  # Ajusta el valor de spacing aquí
+        self.nav_circles = []
+        for i in range(1, 5):
+            circle = NavCircle(screen_name=f'siemens_screen_{i}', manager=self.manager, size_hint=(None, None), size=(15, 15))
+            self.nav_circles.append(circle)
+            nav_layout.add_widget(circle)
+        layout.add_widget(nav_layout)
 
         self.add_widget(layout)
 
+    def on_pre_enter(self, *args):
+        self.update_nav_circles(2)
+
+    def update_nav_circles(self, active_index):
+        for i, circle in enumerate(self.nav_circles):
+            circle.set_active(i == active_index)
+            
+    def on_touch_move(self, touch):
+        if touch.dx > 50:  # deslizar a la derecha
+            self.manager.transition.direction = 'right'
+            self.manager.current = 'siemens_screen_2'
+        elif touch.dx < -50:  # deslizar a la izquierda
+            self.manager.transition.direction = 'left'
+            self.manager.current = 'siemens_screen_4'
+    
     def previous_instruction(self, instance):
         self.manager.transition.direction = 'right'
         self.manager.current = 'siemens_screen_2'
@@ -327,7 +529,8 @@ class SiemensScreen4(Screen):
         # Título
         title = Label(text='Tutorial\nAutoajuste', size_hint=(1, None), height=50, color=(0, 0, 0, 1), font_size='20sp', halign='center')
         title.bind(size=title.setter('text_size'))  # Permite que el tamaño del texto se ajuste al tamaño del widget
-
+        layout.add_widget(title)
+        
         # Imagen de botón de encendido
         patient_button = Image(source='Botón de autoset.png', size_hint=(None, None), size=(600, 400), pos_hint={'center_x': 0.5, 'center_y': 0.76})
         layout.add_widget(patient_button)
@@ -335,23 +538,41 @@ class SiemensScreen4(Screen):
         # Descripción con ajuste de texto
         description = Label(text='Presione este botón para ajustar automáticamente la imagen ecográfica.\n¡Ahora está listo(a) para realizar la ecografía!', size_hint=(1, None), halign='center', valign='middle', text_size=(self.width - 20, None), color=(0, 0, 0, 1), font_size='16sp')
         description.bind(size=description.setter('text_size'))  # Actualiza el tamaño del texto cuando el tamaño del Label cambia
+        layout.add_widget(description)
         
         # Botón para la instrucción anterior
         previous_instruction_button = Button(text="Instrucción Anterior", size_hint=(None, None), width=200, height=40, pos_hint={'center_x': 0.5, 'center_y': 0.2})
         previous_instruction_button.bind(on_press=self.previous_instruction)
-        
+        layout.add_widget(previous_instruction_button)
+
         # Botón para la siguiente instrucción
         start_measurement_button = Button(text="Iniciar Medición", size_hint=(None, None), width=200, height=40, pos_hint={'center_x': 0.5, 'center_y': 0.1})
         start_measurement_button.bind(on_press=self.show_instructions)
-
-        # Añadir widgets al layout
-        layout.add_widget(title)
-        layout.add_widget(description)
-        layout.add_widget(previous_instruction_button)
         layout.add_widget(start_measurement_button)
+
+        # Barra de navegación
+        nav_layout = BoxLayout(orientation='horizontal', size_hint=(None, None), height=20, width=200, spacing=20, pos_hint={'center_x': 0.565})  # Ajusta el valor de spacing aquí
+        self.nav_circles = []
+        for i in range(1, 5):
+            circle = NavCircle(screen_name=f'siemens_screen_{i}', manager=self.manager, size_hint=(None, None), size=(15, 15))
+            self.nav_circles.append(circle)
+            nav_layout.add_widget(circle)
+        layout.add_widget(nav_layout)
 
         self.add_widget(layout)
 
+    def on_pre_enter(self, *args):
+        self.update_nav_circles(3)
+
+    def update_nav_circles(self, active_index):
+        for i, circle in enumerate(self.nav_circles):
+            circle.set_active(i == active_index)
+
+    def on_touch_move(self, touch):
+        if touch.dx > 50:  # deslizar a la derecha
+            self.manager.transition.direction = 'right'
+            self.manager.current = 'siemens_screen_3'
+            
     def previous_instruction(self, instance):
         self.manager.transition.direction = 'right'
         self.manager.current = 'siemens_screen_3'
@@ -376,22 +597,52 @@ class SiemensScreen4(Screen):
         self.manager.transition.direction = 'left'
         self.manager.current = 'new_measurement_screen'
 
-## Pantalla para el ecógrafo Dräger
-class DragerScreen1(Screen):
+# Pantalla para el ecógrafo Philips
+class PhilipsScreen1(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        layout = BoxLayout(orientation='vertical', padding=10, spacing=10, height=30)
+        layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
 
-        # Botón para iniciar medición
-        start_measurement_button = Button(text="Iniciar Medición", size_hint=(None, None), width=200, height=40)
-        start_measurement_button.bind(on_press=lambda x: self.change_screen())
-        layout.add_widget(start_measurement_button)
+        # Flecha de regreso
+        back_arrow = ImageButton(source='flecha.png', size_hint=(None, None), size=(50, 50), pos_hint={'center_x': 0.1, 'center_y': 0.9})
+        back_arrow.bind(on_press=self.go_to_patient_info)
+        layout.add_widget(back_arrow)
+
+        # Título
+        title = Label(text='Tutorial\nEncendido del Ecógrafo', size_hint=(1, None), height=50, color=(0, 0, 0, 1), font_size='20sp', halign='center')
+        title.bind(size=title.setter('text_size'))  # Permite que el tamaño del texto se ajuste al tamaño del widget
+
+        # Imagen de botón de encendido
+        on_off_button = Image(source='Botón de encendido.png', size_hint=(None, None), size=(600, 400), pos_hint={'center_x': 0.5, 'center_y': 0.76})
+        layout.add_widget(on_off_button)
+
+        # Descripción con ajuste de texto
+        description = Label(text='Presione el botón de encendido.', size_hint=(1, None), halign='center', valign='middle', text_size=(self.width - 20, None), color=(0, 0, 0, 1), font_size='16sp')
+        description.bind(size=description.setter('text_size'))  # Actualiza el tamaño del texto cuando el tamaño del Label cambia
+
+        # Botón para la siguiente instrucción
+        next_instruction_button = Button(text="Siguiente Instrucción", size_hint=(None, None), width=200, height=40, pos_hint={'center_x': 0.5, 'center_y': 0.1})
+        next_instruction_button.bind(on_press=self.next_instruction)
+
+        # Añadir widgets al layout
+        layout.add_widget(title)
+        layout.add_widget(description)
+        layout.add_widget(next_instruction_button)
 
         self.add_widget(layout)
 
-    def change_screen(self, screen_name):
+    def on_touch_move(self, touch):
+        if touch.dx < -50:  # deslizar a la izquierda
+            self.manager.transition.direction = 'left'
+            self.manager.current = 'siemens_screen_2'
+    
+    def next_instruction(self, instance):
         self.manager.transition.direction = 'left'
-        self.manager.current = screen_name
+        self.manager.current = 'siemens_screen_2'
+
+    def go_to_patient_info(self, instance):
+        self.manager.transition.direction = 'right'
+        self.manager.current = 'patient_info_screen'
 
 class NewMeasurementScreen(Screen):
     def __init__(self, **kwargs):
@@ -776,43 +1027,22 @@ class RegisterScreen(Screen):
         self.manager.current = 'login_screen'
         
     def save_to_database(self, instance):
-        self.manager.database = self.manager.sheet.get_all_values()
-        self.manager.database.pop(0)
         name = self.name_input.text
         email = self.email.text
         password = self.password.text
         confirm_password = self.confirm_password.text
-        if email in list(map(lambda Usuario: Usuario[1], self.manager.database)):
-            self.error[0] = 1
-            self.show_email_already_registered_popup()
-            return
-        else:
-            self.error[0] = 0
-        if not ''.join(name.split()).isalpha():
-            self.error[1] = 1
-            self.error_name.text = 'El nombre solo puede contener letras y espacios.'
-        else:
-            self.error[1] = 0
-            self.error_name.text = ''
-        if (not email.replace('.', '').replace('@', '', 1).isalnum()) or ('@' not in email) or ('.' not in email):
-            self.error[2] = 1
-            self.error_email.text = 'Correo electrónico inválido.'
-        else:
-            self.error[2] = 0
-            self.error_email.text = ''
-        if (len(password)<10) or (not any(list(map(lambda Carácter: Carácter.isupper(), list(password))))) or (not any(list(map(lambda Carácter: Carácter.islower(), list(password))))) or (not any(list(map(lambda Carácter: Carácter.isnumeric(), list(password))))):
-            self.error[3] = 1
-            self.error_password.text = 'La contraseña debe tener al menos 10 caracteres y debe contener mayúsculas, minúsculas y números.'
-        else:
-            self.error[3] = 0
-            self.error_password.text = ''
-        if password != confirm_password:
-            self.error[4] = 1
-            self.error_confirm_password.text = 'Las contraseñas no coinciden.'
-        else:
-            self.error[4] = 0
-            self.error_confirm_password.text = ''
-        if not any(self.error):
+
+        errors, error_messages = self.manager.validate_fields(name, email, password, confirm_password)
+
+        self.error_name.text = error_messages[1]
+        self.error_email.text = error_messages[2]
+        self.error_password.text = error_messages[3]
+        self.error_confirm_password.text = error_messages[4]
+
+        if not any(errors):
+            self.manager.sheet.append_row([name, email, password, None, 1, 1])
+            self.manager.database = self.manager.sheet.get_all_values()
+            self.manager.database.pop(0)
             self.name_input.text = ''
             self.email.text = ''
             self.password.text = ''
@@ -825,11 +1055,9 @@ class RegisterScreen(Screen):
             self.show_password_button.text = 'Mostrar'
             self.show_password_button.state = 'normal'
             self.manager.type = 'register'
-            self.manager.sheet.append_row([name, email, password, None, 1, 1])
-            self.manager.database = self.manager.sheet.get_all_values()
-            self.manager.database.pop(0)
             self.manager.transition.direction = 'left'
             self.manager.current = 'two_step_verification_screen'
+
 
     def show_email_already_registered_popup(self):
         box = FloatLayout()
@@ -906,7 +1134,7 @@ class ChangePasswordScreen1(Screen):
             self.manager.sheet.append_row(data)
             self.manager.database = self.manager.sheet.get_all_values()
             self.manager.database.pop(0)
-            self.manager.type = 'password'
+            self.manager.type = 'change_password'
             self.manager.transition.direction = 'left'
             self.manager.current = 'two_step_verification_screen'
         
@@ -1069,7 +1297,7 @@ class TwoStepVerificationScreen(Screen):
         self.popup = None
 
         # Error código de verificación
-        self.error = Label(text='', size_hint=(None, None), size=(300, 44), pos_hint={'center_x': 0.5, 'y': 0}, color=(1, 0, 0, 1))  # Color del mensaje de error rojo
+        self.error = Label(text='', size_hint=(None, None), size=(300, 44), pos_hint={'center_x': 0.5, 'y': 0.25}, color=(1, 0, 0, 1))  # Color del mensaje de error rojo
         layout.add_widget(self.error)
 
         self.add_widget(layout)
@@ -1102,31 +1330,36 @@ class TwoStepVerificationScreen(Screen):
         self.error.text = ''
         self.popup.dismiss()
         self.manager.transition.direction = 'right'
-        if self.manager.type == 'register':
+        if self.manager.type == 'register' or self.manager.type == 'edit_data':
             self.manager.sheet.delete_rows(len(self.manager.database)+1)
             self.manager.database = self.manager.sheet.get_all_values()
             self.manager.database.pop(0)
-            self.manager.current = 'register_screen'
-        elif self.manager.type == 'password':
-            self.manager.current = 'change_password_screen_1'
+            self.manager.current = self.manager.type+'_screen'
+        elif self.manager.type == 'change_password':
+            self.manager.current = self.manager.type+'_screen_1'
         
     def validate_code(self, instance):
         if self.verification_code_input.text == self.verification_code:
             Clock.unschedule(self.new_code_event)
             self.manager.sheet.update([[1]], f'E{len(self.manager.database)+1}')
-            if self.manager.type == 'register':
+            if self.manager.type == 'register' or self.manager.type == 'edit_data':
+                if self.manager.type == 'edit_data':
+                    self.manager.sheet.delete_rows(len(self.manager.database))
                 self.manager.database = self.manager.sheet.get_all_values()
                 self.manager.database.pop(0)
                 box = FloatLayout()
-                label = Label(text='', size_hint=(1, 0.6), pos_hint={'center_x': 0.5, 'center_y': 0.7})
+                label = Label(text='', size_hint=(1.2, 0.6), pos_hint={'center_x': 0.5, 'center_y': 0.7})
                 button = Button(text='Acceder', size_hint=(0.8, 0.2), pos_hint={'center_x': 0.5, 'y': 0.1})
                 box.add_widget(button)
                 button.bind(on_press=self.go_to_patient_info)
                 self.popup = Popup(title='Éxito', content=box, size_hint=(None, None), size=(400, 200))
                 box.add_widget(label)
-                label.text = '¡Sus datos fueron agregados a la base de datos!'
+                if self.manager.type == 'register':
+                    label.text = '¡Sus datos fueron agregados a la base de datos!'
+                else:
+                    label.text = '¡Sus datos fueron actualizados en la base de datos!'
                 self.popup.open()
-            elif self.manager.type == 'password':
+            elif self.manager.type == 'change_password':
                 self.manager.current = 'change_password_screen_2'
         else:
             self.error.text = 'Código de verificación incorrecto'
@@ -1137,6 +1370,30 @@ class TwoStepVerificationScreen(Screen):
         self.popup.dismiss()
         self.manager.transition.direction = 'left'
         self.manager.current = 'patient_info_screen'
+class NavCircle(ButtonBehavior, Widget):
+    def __init__(self, screen_name, manager, **kwargs):
+        super().__init__(**kwargs)
+        self.screen_name = screen_name
+        self.manager = manager
+        with self.canvas:
+            self.circle_color = Color(0.5, 0.5, 0.5, 1)  # Color gris claro
+            self.circle = Ellipse(size=(15, 15), pos=self.pos)  # Tamaño reducido
+        self.bind(pos=self.update_circle, size=self.update_circle)
+        self.bind(on_press=self.on_circle_pressed)
+
+    def update_circle(self, *args):
+        self.circle.pos = self.center_x - self.circle.size[0] / 2, self.center_y - self.circle.size[1] / 2  # Centra el círculo
+        self.circle.size = (17, 17)  # Tamaño fijo para el círculo
+
+    def on_circle_pressed(self, instance):
+        self.manager.transition.direction = 'left'
+        self.manager.current = self.screen_name
+
+    def set_active(self, active):
+        if active:
+            self.circle_color.rgba = (93/255, 161/255, 163/255, 1)
+        else:
+            self.circle_color.rgba = (0.5, 0.5, 0.5, 1)  # Color gris claro para los círculos inactivos
 
 class MyScreenManager(ScreenManager):
     def __init__(self, **kwargs):
@@ -1152,7 +1409,33 @@ class MyScreenManager(ScreenManager):
         self.database.pop(0)
         self.type = None
         Window.bind(on_keyboard=self.on_back_button)
+
+    def validate_fields(self, name, email, password, confirm_password, current_email=None):
+        errors = [0]*5
+        error_messages = ["", "", "", "", ""]
         
+        if (email != current_email) and (email in list(map(lambda Usuario: Usuario[1], self.database))):
+            errors[0] = 1
+            error_messages[0] = 'Este correo electrónico ya está registrado.'
+        
+        if not ''.join(name.split()).isalpha():
+            errors[1] = 1
+            error_messages[1] = 'El nombre solo puede contener letras y espacios.'
+        
+        if (not email.replace('.', '').replace('@', '', 1).isalnum()) or ('@' not in email) or ('.' not in email):
+            errors[2] = 1
+            error_messages[2] = 'Correo electrónico inválido.'
+        
+        if (len(password)<10) or (not any(list(map(lambda Carácter: Carácter.isupper(), list(password))))) or (not any(list(map(lambda Carácter: Carácter.islower(), list(password))))) or (not any(list(map(lambda Carácter: Carácter.isnumeric(), list(password))))):
+            errors[3] = 1
+            error_messages[3] = 'La contraseña debe tener al menos 10 caracteres y debe contener mayúsculas, minúsculas y números.'
+        
+        if password != confirm_password:
+            errors[4] = 1
+            error_messages[4] = 'Las contraseñas no coinciden.'
+        
+        return errors, error_messages
+
     def on_back_button(self, window, key, *args):
         if key == 27:  # 27 is the key code for the back button on Android
             current_screen = self.current
@@ -1168,9 +1451,29 @@ class MyScreenManager(ScreenManager):
             elif current_screen == 'change_password_screen_2':
                 self.get_screen('change_password_screen_2').show_return_popup(None)
                 return True
+            elif current_screen == 'edit_data_screen':
+                self.get_screen('patient_info_screen').show_return_popup(None)
+                return True
+            elif current_screen == 'siemens_screen_1':
+                self.get_screen('patient_info_screen').show_return_popup(None)
+                return True
+            elif current_screen == 'siemens_screen_2':
+                self.get_screen('siemens_screen_1').show_return_popup(None)
+                return True
+            elif current_screen == 'siemens_screen_3':
+                self.get_screen('siemens_screen_2').show_return_popup(None)
+                return True
+            elif current_screen == 'siemens_screen_4':
+                self.get_screen('siemens_screen_3').show_return_popup(None)
+                return True
+            elif current_screen == 'philips_screen_1':
+                self.get_screen('patient_info_screen').show_return_popup(None)
+                return True
         return False
 
-# App principal que gestiona las pantallas
+class ImageButton(ButtonBehavior, Image):
+    pass
+
 class MyApp(App):
     def build(self):
         sm = MyScreenManager()
@@ -1180,12 +1483,20 @@ class MyApp(App):
         sm.add_widget(ChangePasswordScreen2(name='change_password_screen_2'))
         sm.add_widget(TwoStepVerificationScreen(name='two_step_verification_screen'))
         sm.add_widget(PatientInfoScreen(name='patient_info_screen'))
+        sm.add_widget(EditDataScreen(name='edit_data_screen'))
         sm.add_widget(SiemensScreen1(name='siemens_screen_1'))
         sm.add_widget(SiemensScreen2(name='siemens_screen_2'))
         sm.add_widget(SiemensScreen3(name='siemens_screen_3'))
         sm.add_widget(SiemensScreen4(name='siemens_screen_4'))
-        sm.add_widget(DragerScreen1(name='drager_screen_1'))
+        sm.add_widget(PhilipsScreen1(name='philips_screen_1'))
         sm.add_widget(NewMeasurementScreen(name='new_measurement_screen'))
+
+        # Create NavCircles after the manager is fully initialized
+        for screen in [sm.get_screen(name) for name in sm.screen_names]:
+            if hasattr(screen, 'nav_circles'):
+                for circle in screen.nav_circles:
+                    circle.manager = sm
+        
         return sm
 
     def on_stop(self):
@@ -1193,9 +1504,6 @@ class MyApp(App):
         if hasattr(self.root.get_screen('new_measurement_screen'), 'capture'):
             if self.root.get_screen('new_measurement_screen').capture.isOpened():
                 self.root.get_screen('new_measurement_screen').capture.release()
-
-class ImageButton(ButtonBehavior, Image):
-    pass
-
+            
 if __name__ == '__main__':
     MyApp().run()
