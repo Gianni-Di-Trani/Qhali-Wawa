@@ -474,10 +474,6 @@ class SiemensTutorialScreen(Screen):
         for i, btn in enumerate(self.nav_buttons):
             btn.set_active(i == value)
 
-    def on_index_change(self, instance, value):
-        print(1)
-        self.update_circular_buttons(instance, value)
-
     def go_to_main_menu_screen(self, instance):
         self.manager.transition.direction = 'right'
         self.manager.current = 'main_menu_screen'
