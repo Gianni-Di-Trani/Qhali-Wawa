@@ -233,8 +233,8 @@ class EditDataScreen(Screen):
         self.password = TextInput(hint_text='Contraseña', password=True, size_hint=(0.76, None), height=44, pos_hint={'center_x': 0.5, 'center_y': 0.4})
         layout.add_widget(self.password)
 
-        # Botón de ojo para mostrar/ocultar contraseña
-        self.show_password_button = ToggleButton(text='Mostrar', size_hint=(0.1, 0.05), pos_hint={'center_x': 0.95, 'center_y': 0.4})
+        # Botón para mostrar/ocultar contraseña
+        self.show_password_button = ToggleButton(text='Mostrar', size_hint=(0.1, 0.05), pos_hint={'center_x': 0.95, 'center_y': 0.35})
         self.show_password_button.bind(on_press=self.toggle_password_visibility)
         layout.add_widget(self.show_password_button)
         
@@ -310,12 +310,12 @@ class EditDataScreen(Screen):
     def toggle_password_visibility(self, instance):
         if self.password.password:
             self.password.password = False
-            self.show_password_button.text = 'Ocultar'
             self.confirm_password.password = False
+            self.show_password_button.text = 'Ocultar'
         else:
             self.password.password = True
-            self.show_password_button.text = 'Mostrar'
             self.confirm_password.password = True
+            self.show_password_button.text = 'Mostrar'
         
     def save_changes(self, instance):
         if self.data_changed():
@@ -956,7 +956,7 @@ class RegisterScreen(Screen):
         layout.add_widget(self.password)
 
         # Botón de ojo para mostrar/ocultar contraseña
-        self.show_password_button = ToggleButton(text='Mostrar', size_hint=(0.1, 0.05), pos_hint={'center_x': 0.95, 'center_y': 0.4})
+        self.show_password_button = ToggleButton(text='Mostrar', size_hint=(0.1, 0.05), pos_hint={'center_x': 0.95, 'center_y': 0.35})
         self.show_password_button.bind(on_press=self.toggle_password_visibility)
         layout.add_widget(self.show_password_button)
         
@@ -981,7 +981,7 @@ class RegisterScreen(Screen):
         self.error = [0]*5
         self.popup = None
         
-    def clear_fields(self, instance):
+    def clear_fields(self):
         self.name_input.text = ''
         self.email.text = ''
         self.password.text = ''
@@ -992,6 +992,7 @@ class RegisterScreen(Screen):
         self.error_confirm_password.text = ''
         
     def go_to_login(self, instance):
+        self.clear_fields()
         self.password.password = True
         self.show_password_button.text = 'Mostrar'
         self.show_password_button.state = 'normal'
@@ -1008,7 +1009,7 @@ class RegisterScreen(Screen):
 
         errors, error_messages = self.manager.validate_fields(name, email, password, confirm_password)
 
-        if (email != current_email) and (email in list(map(lambda Usuario: Usuario[1], self.database))):
+        if email in list(map(lambda Usuario: Usuario[1], self.manager.database)):
             self.show_email_already_registered_popup()
         else:
             self.error_name.text = error_messages[0]
@@ -1017,10 +1018,10 @@ class RegisterScreen(Screen):
             self.error_confirm_password.text = error_messages[3]
 
         if not any(errors):
+            self.clear_fields()
             self.manager.sheet.append_row([name, email, password, None, 1, 1])
             self.manager.database = self.manager.sheet.get_all_values()
             self.manager.database.pop(0)
-            self.clear_fields()
             self.password.password = True
             self.show_password_button.text = 'Mostrar'
             self.show_password_button.state = 'normal'
@@ -1042,12 +1043,12 @@ class RegisterScreen(Screen):
     def toggle_password_visibility(self, instance):
         if self.password.password:
             self.password.password = False
-            self.show_password_button.text = 'Ocultar'
             self.confirm_password.password = False
+            self.show_password_button.text = 'Ocultar'
         else:
             self.password.password = True
-            self.show_password_button.text = 'Mostrar'
             self.confirm_password.password = True
+            self.show_password_button.text = 'Mostrar'
 
 class ChangePasswordScreen1(Screen):
     def __init__(self, **kwargs):
