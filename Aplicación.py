@@ -1,6 +1,6 @@
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.screenmanager import ScreenManager, Screen, NoTransition, SlideTransition
+from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.label import Label
@@ -14,19 +14,15 @@ from kivy.uix.popup import Popup
 from kivy.uix.dropdown import DropDown
 from kivy.uix.widget import Widget
 from kivy.animation import Animation
-import os
-import cv2
-import numpy as np
 from kivy.graphics.texture import Texture
-from kivy.graphics import Color, Rectangle, Ellipse
+from kivy.graphics import Color, Ellipse
 from kivy.clock import Clock
 from kivy.uix.togglebutton import ToggleButton
+from kivy.utils import platform
+import cv2
+import numpy as np
 import gspread
 from google.oauth2 import service_account
-from kivy.utils import platform
-from pynput.mouse import Listener as MouseListener
-from flask import Flask, Response
-import threading
 
 # Pantalla de inicio de sesión
 class LoginScreen(Screen):
@@ -441,7 +437,7 @@ class SiemensTutorialScreen(Screen):
         title5.bind(size=title5.setter('text_size'))
         slide5.add_widget(title5)
         slide5.add_widget(Image(source='Abdomen con cinta verde.png', size_hint=(None, None), size=(600, 400), pos_hint={'center_x': 0.5}))
-        description5 = Label(text='Coloque la cinta verde como se ve en la imagen.\n¡Ahora está listo(a) para realizar la ecografía!', size_hint=(1, None), halign='center', valign='middle', text_size=(self.width - 20, None), font_size='16sp', color=(0, 0, 0, 1))
+        description5 = Label(text='Coloque la cinta verde como se ve en la imagen.', size_hint=(1, None), halign='center', valign='middle', text_size=(self.width - 20, None), font_size='16sp', color=(0, 0, 0, 1))
         description5.bind(size=description5.setter('text_size'))
         slide5.add_widget(description5)
         # Botón para la siguiente instrucción
@@ -513,7 +509,6 @@ class PhilipsTutorialScreen(Screen):
 
         # Crear el Carousel
         self.carousel = Carousel(direction='right', loop=False)
-        self.carousel.bind(on_index=self.update_circular_buttons)
 
         # Diapositiva 1
         slide1 = BoxLayout(orientation='vertical', padding=10, spacing=10)
@@ -554,7 +549,7 @@ class PhilipsTutorialScreen(Screen):
         title4.bind(size=title4.setter('text_size'))
         slide4.add_widget(title4)
         slide4.add_widget(Image(source='Philips - botón de iSCAN.png', size_hint=(None, None), size=(600, 400), pos_hint={'center_x': 0.5}))
-        description4 = Label(text='Presione el botón de iSCAN para ajustar automáticamente la imagen ecográfica.\n¡Ahora está listo(a) para realizar la ecografía!', size_hint=(1, None), halign='center', valign='middle', text_size=(self.width - 20, None), font_size='16sp', color=(0, 0, 0, 1))
+        description4 = Label(text='Presione el botón de iSCAN para ajustar automáticamente la imagen ecográfica.', size_hint=(1, None), halign='center', valign='middle', text_size=(self.width - 20, None), font_size='16sp', color=(0, 0, 0, 1))
         description4.bind(size=description4.setter('text_size'))
         slide4.add_widget(description4)
         # Botón para la siguiente instrucción
@@ -569,7 +564,7 @@ class PhilipsTutorialScreen(Screen):
         title5.bind(size=title5.setter('text_size'))
         slide5.add_widget(title5)
         slide5.add_widget(Image(source='Abdomen con cinta verde.png', size_hint=(None, None), size=(600, 400), pos_hint={'center_x': 0.5}))
-        description5 = Label(text='Coloque la cinta verde como se ve en la imagen.\n¡Ahora está listo(a) para realizar la ecografía!', size_hint=(1, None), halign='center', valign='middle', text_size=(self.width - 20, None), font_size='16sp', color=(0, 0, 0, 1))
+        description5 = Label(text='Coloque la cinta verde como se ve en la imagen.', size_hint=(1, None), halign='center', valign='middle', text_size=(self.width - 20, None), font_size='16sp', color=(0, 0, 0, 1))
         description5.bind(size=description5.setter('text_size'))
         slide5.add_widget(description5)
         # Botón para la siguiente instrucción
@@ -583,12 +578,15 @@ class PhilipsTutorialScreen(Screen):
         # Crear botones circulares para la navegación
         self.nav_layout = BoxLayout(orientation='horizontal', size_hint=(None, None), height=50, width=200, spacing=20, pos_hint={'center_x': 0.5})
         self.nav_buttons = []
-        for i in range(len(self.carousel.slides)):
+        for i in range(len(self.carousel.slides)):  # Create buttons based on the number of slides
             btn = CircularButton(carousel=self.carousel, index=i, nav_buttons=self.nav_buttons)
             self.nav_buttons.append(btn)
             self.nav_layout.add_widget(btn)
+
         layout.add_widget(self.nav_layout)
 
+        self.carousel.bind(index=self.update_circular_buttons)
+        
         self.add_widget(layout)
 
     def on_enter(self, *args):
@@ -605,7 +603,7 @@ class PhilipsTutorialScreen(Screen):
             
     def show_instruction_popup(self, instance):
         box_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
-        box_layout.add_widget(Label(text="Coloque el celular en el visor y ajústelo."))
+        box_layout.add_widget(Label(text="¡Coloque el celular en el visor y ajústelo."))
         
         accept_button = Button(text="Continuar", size_hint=(1, 0.4))
         accept_button.bind(on_press=self.proceed_to_measurement)
@@ -657,11 +655,6 @@ class NewMeasurementScreen(Screen):
         def on_click(x, y, button, pressed):
             if pressed:
                 self.modo_visualizacion = (self.modo_visualizacion + 1) % 14  # Ciclar entre 0 y 13
-
-        # Iniciar el oyente del mouse en un hilo aparte
-        from pynput.mouse import Listener as MouseListener
-        listener = MouseListener(on_click=on_click)
-        listener.start()
 
     def go_to_main_menu_screen(self, instance):
         if self.capture is not None:
@@ -1410,7 +1403,7 @@ class ImageButton(ButtonBehavior, Image):
 
 class MyApp(App):
     def build(self):
-        sm = MyScreenManager(transition=SlideTransition())
+        sm = MyScreenManager()
         sm.add_widget(LoginScreen(name='login_screen'))
         sm.add_widget(RegisterScreen(name='register_screen'))
         sm.add_widget(ChangePasswordScreen1(name='change_password_screen_1'))
