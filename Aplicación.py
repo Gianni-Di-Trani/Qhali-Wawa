@@ -23,6 +23,7 @@ import cv2
 import numpy as np
 import gspread
 from google.oauth2 import service_account
+from pynput.mouse import Listener as MouseListener
 
 # Pantalla de inicio de sesión
 class LoginScreen(Screen):
@@ -648,13 +649,21 @@ class NewMeasurementScreen(Screen):
         self.verdeBajo = np.array([35, 100, 100], np.uint8)
         self.verdeAlto = np.array([85, 255, 255], np.uint8)
 
+        # Rangos HSV para el color morado
+        self.moradoBajo = np.array([125, 100, 100], np.uint8)
+        self.moradoAlto = np.array([150, 255, 255], np.uint8)
+
         # Estado para controlar el modo de visualización
-        self.modo_visualizacion = 0  # Inicialización del modo de visualización
+        self.modo_visualizacion = 0  # 0 = Primer paso, 1 = Segundo paso, 2 = Tercer paso, 3 = Cuarto paso
 
         # Función para manejar los clics del mouse
         def on_click(x, y, button, pressed):
             if pressed:
-                self.modo_visualizacion = (self.modo_visualizacion + 1) % 14  # Ciclar entre 0 y 13
+                self.modo_visualizacion = (self.modo_visualizacion + 1) % 30  # Ciclar entre 0 y 19
+
+        # Iniciar el oyente del mouse en un hilo aparte
+        self.listener = MouseListener(on_click=on_click)
+        self.listener.start()
 
     def go_to_main_menu_screen(self, instance):
         if self.capture is not None:
@@ -692,22 +701,52 @@ class NewMeasurementScreen(Screen):
             ret, frame = self.capture.read()
             if ret:
                 frameHSV = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+                
+                # Crear máscaras para los colores verde y morado
                 maskVerde = cv2.inRange(frameHSV, self.verdeBajo, self.verdeAlto)
-                contornos, _ = cv2.findContours(maskVerde, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
+                maskMorado = cv2.inRange(frameHSV, self.moradoBajo, self.moradoAlto)
+                
+                # Encontrar contornos verdes
+                contornosVerdes, _ = cv2.findContours(maskVerde, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                
+                # Encontrar contornos morados (línea morada)
+                contornosMorados, _ = cv2.findContours(maskMorado, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                
                 overlay = frame.copy()
-                for contorno in contornos:
+                
+                # Detectar el borde superior usando la línea morada y cambiar su color a azul
+                borde_superior_y = frame.shape[0]  # Inicialmente, establecerlo al valor más bajo posible
+                for contorno in contornosMorados:
                     area = cv2.contourArea(contorno)
-                    if area > 500:
+                    if area > 500:  # Filtrar contornos pequeños
+                        x, y, w, h = cv2.boundingRect(contorno)
+                        borde_superior_y = min(borde_superior_y, y)  # Buscar el contorno más alto
+                        cv2.drawContours(frame, [contorno], 0, (255, 0, 0), thickness=cv2.FILLED)  # Cambiar color a azul
+
+                for contorno in contornosVerdes:
+                    area = cv2.contourArea(contorno)
+                    if area > 500:  # Filtrar contornos pequeños
                         M = cv2.moments(contorno)
                         if M["m00"] != 0:
                             cX = int(M["m10"] / M["m00"])
                             cY = int(M["m01"] / M["m00"])
+                        
+                        # Dividir el área verde en tres fragmentos
+                        x, y, w, h = cv2.boundingRect(contorno)
+                        fragmento_1 = (y, y + h // 3)
+                        fragmento_2 = (y + h // 3, y + 2 * h // 3)
+                        fragmento_3 = (y + 2 * h // 3, y + h)
 
+                        # Dividir el área verde en dos secciones verticalmente
+                        seccion_1 = (x, x + w // 3)
+                        seccion_2 = (x + w // 3, x + 2*w//3)
+                        seccion_3 = (x + 2*w // 3, x + w)
+
+                        # Dibujar el contorno y realizar operaciones basadas en el modo de visualización
                         if self.modo_visualizacion == 0:
                             cv2.drawContours(overlay, [contorno], 0, (0, 0, 255), thickness=cv2.FILLED)
-                            cv2.circle(overlay, (cX, cY), 5, (0, 0, 255), -1)
-                            cv2.putText(overlay, f"APLICAR GEL EN EL AREA: (X: {cX}, Y: {cY}, Area: {int(area)})", (cX - 50, cY - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+                            cv2.circle(overlay, (cX, cY), 20, (255, 255, 255), -1)
+                            cv2.putText(overlay, "Cubrir el circulo con gel", (cX-100, cY-100), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
 
                         elif self.modo_visualizacion == 1:
                             epsilon = 0.01 * cv2.arcLength(contorno, True)
@@ -716,206 +755,235 @@ class NewMeasurementScreen(Screen):
                             selected_points = points[np.round(np.linspace(0, len(points) - 1, 6)).astype(int)]
                             for (x, y) in selected_points:
                                 cv2.circle(overlay, (x, y), 20, (0, 0, 255), -1)
-                            cv2.putText(overlay, "DISTRIBUIR UNIFORMEMENTE EL GEL EN LA ZONA DESEADA", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+                            cv2.putText(overlay, "DISTRIBUIR UNIFORMEMENTE EL GEL EN LA ZONA DESEADA", (10, borde_superior_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
                         elif self.modo_visualizacion == 2:
                             cv2.putText(overlay, "COLOQUE EL NOTCH EN LA PARTE DERECHA DEL PACIENTE", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
 
                         elif self.modo_visualizacion == 3:
-                            cv2.drawContours(overlay, [contorno], 0, (0, 0, 255), thickness=cv2.FILLED)
-                            topmost = tuple(contorno[contorno[:, :, 1].argmin()][0])
-                            bbox = cv2.boundingRect(contorno)
-                            center_x = bbox[0] + bbox[2] // 2
-                            center_y = topmost[1] + 50  # Incrementado el desplazamiento vertical para asegurar que el arco está debajo de la línea superior
+                            # Calcular la posición del arco en la parte superior izquierda del área delimitada por el contorno verde
+                            arco_x = x + 70
+                            arco_y = fragmento_1[0] + 30
+                            # Dibujar el arco en la parte superior izquierda del área delimitada por el contorno verde
+                            cv2.ellipse(overlay, (arco_x, arco_y), (30, 10), 0, 180, 360, (0, 0, 0), 4)
+                            cv2.putText(overlay, "ARCO", (arco_x - 50, arco_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
-                            # Dibuja el arco centrado horizontalmente en la parte superior ajustada
-                            cv2.ellipse(overlay, (center_x, center_y), (30, 10), 270, 0, 180, (0, 0, 0), 4)
-                            cv2.putText(overlay, f"ARCO (X: {center_x}, Y: {center_y}, Area: {int(area)})", (center_x - 50, center_y - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
-                        
                         elif self.modo_visualizacion == 4:
-                            for contorno in contornos:
-                                area = cv2.contourArea(contorno)
-                                if area > 500:  # Asegurándonos de que el contorno es lo suficientemente grande
-                                    bbox = cv2.boundingRect(contorno)
-                                    x, y, w, h = bbox
+                            # Posición de la primera línea punteada en la mitad del fragmento 1
+                            linea1_y = fragmento_1[0] + (fragmento_1[1] - fragmento_1[0]) // 2
+                            # Posición de la segunda línea punteada en la mitad del fragmento 2
+                            linea2_y = fragmento_2[0] + (fragmento_2[1] - fragmento_2[0]) // 2
 
-                                    area_frame = 10000  # Supongamos que este es el área del marco dentro del cual debe estar el contorno
-                                    if area > 0.8 * area_frame:  # Condición adicional para que el contorno sea grande suficiente
+                            # Dibujar la primera línea punteada
+                            for i in range(x, x + w, 20):
+                                cv2.line(overlay, (i, linea1_y), (i + 10, linea1_y), (0, 0, 0), 2)
 
-                                        M = cv2.moments(contorno)
-                                        if M["m00"] != 0:
-                                            cX = int(M["m10"] / M["m00"])  # Centroide x del contorno
-                                            cY = int(M["m01"] / M["m00"])  # Centroide y del contorno
+                            # Dibujar la segunda línea punteada
+                            for i in range(x, x + w, 20):
+                                cv2.line(overlay, (i, linea2_y), (i + 10, linea2_y), (0, 0, 0), 2)
 
-                                            cm_to_pixels = 20  # Suponiendo que 1 cm equivale a 20 píxeles
-                                            # Calcula la posición de las líneas blancas en base al centroide del contorno
-                                            left_line_x = cX - (2 * cm_to_pixels)
-                                            right_line_x = cX + (2 * cm_to_pixels)
-                                            # Dibuja las líneas blancas dentro del marco del contorno
-                                            cv2.line(overlay, (left_line_x, y), (left_line_x, y + h), (255, 255, 255), 2)
-                                            cv2.line(overlay, (right_line_x, y), (right_line_x, y + h), (255, 255, 255), 2)
-
-                                        # Posiciona y muestra el texto "DESLIZA!"
-                                        text_position = (x + w // 2 - 60, y + h + 20)  # Ajusta la posición del texto debajo del contorno
-                                        cv2.putText(overlay, "DESLIZA", text_position, cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
-                
-                        elif self.modo_visualizacion == 5:
-                            cv2.drawContours(overlay, [contorno], 0, (0, 0, 255), thickness=cv2.FILLED)
-                            bbox = cv2.boundingRect(contorno)
-                            center_x = bbox[0] + bbox[2] // 2  # Centro horizontal del contorno
-                            center_y = bbox[1] + bbox[3] - 20  # Posiciona el centro del arco un poco por encima del borde inferior del contorno
-                            radius_x = min(30, bbox[2] // 4)  # Ajusta el radio horizontal para que no exceda el ancho del contorno
-                            radius_y = min(10, bbox[3] // 10)  # Ajusta el radio vertical para que no exceda la altura del contorno
-                            cv2.ellipse(overlay, (center_x, center_y), (radius_x, radius_y), 270, 0, 180, (0, 0, 0), 4)
-                            cv2.putText(overlay, "ARCO", (center_x - 50, center_y - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+                            # Añadir el texto "DESLIZA" arriba del primer borde punteado
+                            cv2.putText(overlay, "DESLIZA", (x + 10, linea1_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 2)
                         
+                        elif self.modo_visualizacion == 5:
+                            # Calcular la posición del arco en la parte superior derecha del área delimitada por el contorno verde
+                            arco_radio = 30  # Radio del arco
+                            center_x = x + w - 70  # Fijar el extremo derecho del arco al borde derecho del contorno verde
+                            center_y = fragmento_1[0] + 30
+
+                            # Dibujar el arco en la parte superior derecha del área delimitada por el contorno verde
+                            cv2.ellipse(overlay, (center_x, center_y), (arco_radio, 10), 0, 180, 360, (0, 0, 0), 4)
+                            cv2.putText(overlay, "ARCO", (center_x - 50, center_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+
+                        # PASO 2
                         elif self.modo_visualizacion == 6:
                             cv2.putText(overlay, "COLOQUE EL TRANSDUCTOR DEBAJO DE LAS COSTILLAS", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
-                        
+
                         elif self.modo_visualizacion == 7:
-                            for contorno in contornos:
-                                area = cv2.contourArea(contorno)
-                                if area > 500:  # Asegurándonos de que el contorno es lo suficientemente grande
-                                    bbox = cv2.boundingRect(contorno)
-                                    x, y, w, h = bbox
+                            # Calcular la posición del arco en el borde inferior del fragmento 2
+                            arco_radio = 30  # Radio del arco
+                            arco_x = x + w // 2  # Centro del borde inferior del fragmento 2
+                            arco_y = fragmento_1[1] + arco_radio  # Borde inferior del fragmento 2
 
-                                    M = cv2.moments(contorno)
-                                    if M["m00"] != 0:
-                                        cX = int(M["m10"] / M["m00"])  # Centroide x del contorno
-                                        cm_to_pixels = 20  # Suponiendo que 1 cm equivale a 20 píxeles
+                            # Dibujar el arco en el borde inferior del fragmento 2
+                            cv2.ellipse(overlay, (arco_x, arco_y), (arco_radio, 10), 0, 180, 360, (0, 0, 0), 4)
+                            cv2.putText(overlay, "ARCO EN BORDE INFERIOR", (arco_x - 50, arco_y - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
-                                        # Calcula la posición de la línea izquierda en base al centroide del contorno
-                                        left_line_x = cX - (2 * cm_to_pixels)
-
-                                        # Posición del nuevo arco en la mitad de la línea izquierda
-                                        arc_center_x = left_line_x
-                                        arc_center_y = y + h // 2
-
-                                        cv2.ellipse(overlay, (arc_center_x, arc_center_y), (30, 10), 270, 0, 180, (0, 0, 0), 4)
-                                        cv2.putText(overlay, "ARCO", (arc_center_x - 50, arc_center_y - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
                         elif self.modo_visualizacion == 8:
-                            for contorno in contornos:
-                                area = cv2.contourArea(contorno)
-                                if area > 500:  # Asegurándonos de que el contorno es lo suficientemente grande
-                                    bbox = cv2.boundingRect(contorno)
-                                    x, y, w, h = bbox
+                            # Posición de la primera línea punteada en la mitad del fragmento 1
+                            linea2_y = fragmento_2[0] + (fragmento_2[1] - fragmento_2[0]) // 2
+                            # Posición de la segunda línea punteada en la mitad del fragmento 2
+                            linea3_y = fragmento_3[0] + (fragmento_3[1] - fragmento_3[0]) // 2
 
-                                    M = cv2.moments(contorno)
-                                    if M["m00"] != 0:
-                                        cX = int(M["m10"] / M["m00"])  # Centroide x del contorno
-                                        cm_to_pixels = 20  # Suponiendo que 1 cm equivale a 20 píxeles
+                            # Dibujar la primera línea punteada
+                            for i in range(x, x + w, 20):
+                                cv2.line(overlay, (i, linea2_y), (i + 10, linea2_y), (0, 0, 0), 2)
 
-                                        # Antigua línea izquierda ahora como línea derecha
-                                        new_right_line_x = cX - (2 * cm_to_pixels)
-                                        # Nueva línea izquierda, 2 cm a la izquierda de la nueva línea derecha
-                                        new_left_line_x = new_right_line_x - (2 * cm_to_pixels)
+                            # Dibujar la segunda línea punteada
+                            for i in range(x, x + w, 20):
+                                cv2.line(overlay, (i, linea3_y), (i + 10, linea3_y), (0, 0, 0), 2)
 
-                                        # Dibuja las líneas blancas dentro del marco del contorno
-                                        cv2.line(overlay, (new_right_line_x, y), (new_right_line_x, y + h), (255, 255, 255), 2)
-                                        cv2.line(overlay, (new_left_line_x, y), (new_left_line_x, y + h), (255, 255, 255), 2)
-
-                                    # Posiciona y muestra el texto "DESLIZA!"
-                                    text_position = (x + w // 2 - 60, y + h + 20)  # Ajusta la posición del texto debajo del contorno
-                                    cv2.putText(overlay, "DESLIZA", text_position, cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+                            # Añadir el texto "DESLIZA" arriba del primer borde punteado
+                            cv2.putText(overlay, "DESLIZA", (x + 10, linea2_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 2)
+                        
                         elif self.modo_visualizacion == 9:
-                            for contorno in contornos:
-                                area = cv2.contourArea(contorno)
-                                if area > 500:  # Asegurándonos de que el contorno es lo suficientemente grande
-                                    bbox = cv2.boundingRect(contorno)
-                                    x, y, w, h = bbox
+                            # Calcular la posición del arco en la parte superior derecha del área delimitada por el contorno verde
+                            arco_radio = 30  # Radio del arco
+                            center_x = x + w - 70  # Fijar el extremo derecho del arco al borde derecho del contorno verde
+                            center_y = (fragmento_2[0] + 30)
 
-                                    M = cv2.moments(contorno)
-                                    if M["m00"] != 0:
-                                        cX = int(M["m10"] / M["m00"])  # Centroide x del contorno
-                                        cm_to_pixels = 20  # Suponiendo que 1 cm equivale a 20 píxeles
+                            # Dibujar el arco en la parte superior derecha del área delimitada por el contorno verde
+                            cv2.ellipse(overlay, (center_x, center_y), (arco_radio, 10), 0, 180, 360, (0, 0, 0), 4)
+                            cv2.putText(overlay, "ARCO EN BORDE DERECHO", (center_x - 50, center_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
-                                        # Calcula la posición de la línea izquierda en base al centroide del contorno
-                                        left_line_x = cX - (2 * cm_to_pixels)
-
-                                        # Posición del nuevo arco en la parte inferior de la línea izquierda
-                                        arc_center_x = left_line_x
-                                        arc_center_y = y + h - 10  # Ajuste para posicionar el arco dentro del contorno cerca del borde inferior
-
-                                        # Dibuja el arco con los mismos parámetros de tamaño y orientación
-                                        cv2.ellipse(overlay, (arc_center_x, arc_center_y), (30, 10), 270, 0, 180, (0, 0, 0), 4)
-                                        cv2.putText(overlay, "ARCO", (arc_center_x - 50, arc_center_y - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+                        # PASO 3
                         elif self.modo_visualizacion == 10:
                             cv2.putText(overlay, "COLOQUE EL TRANSDUCTOR DEBAJO DE LAS COSTILLAS", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
-                        
+
                         elif self.modo_visualizacion == 11:
-                            for contorno in contornos:
-                                area = cv2.contourArea(contorno)
-                                if area > 500:  # Asegurándonos de que el contorno es lo suficientemente grande
-                                    bbox = cv2.boundingRect(contorno)
-                                    x, y, w, h = bbox
+                            # Calcular la posición del arco en el borde inferior del fragmento 2
+                            arco_radio = 20  # Radio del arco
+                            arco_x = x + w // 2  # Centro del borde inferior del fragmento 2
+                            arco_y = fragmento_2[1] + arco_radio  # Borde inferior del fragmento 2
 
-                                    M = cv2.moments(contorno)
-                                    if M["m00"] != 0:
-                                        cX = int(M["m10"] / M["m00"])  # Centroide x del contorno
-                                        cm_to_pixels = 20  # Suponiendo que 1 cm equivale a 20 píxeles
+                            # Dibujar el arco en el borde inferior del fragmento 2
+                            cv2.ellipse(overlay, (arco_x, arco_y), (arco_radio, 10), 0, 180, 360,(0, 0, 0), 4)
+                            cv2.putText(overlay, "ARCO", (arco_x - 50, arco_y - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
-                                        # Calcula la posición de la línea derecha en base al centroide del contorno
-                                        right_line_x = cX - (3 * cm_to_pixels)  # Alineado con la definición del modo 11
-
-                                        # Posición del nuevo arco en el centro vertical de la línea derecha
-                                        arc_center_x = right_line_x
-                                        arc_center_y = y + h // 2  # Ajuste para posicionar el arco en el centro vertical de la línea
-
-                                        # Dibuja el arco con los mismos parámetros de tamaño y orientación
-                                        cv2.ellipse(overlay, (arc_center_x, arc_center_y), (30, 10), 270, 0, 180, (0, 0, 0), 4)
-                                        cv2.putText(overlay, "ARCO", (arc_center_x - 50, arc_center_y - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
                         elif self.modo_visualizacion == 12:
-                            for contorno in contornos:
-                                area = cv2.contourArea(contorno)
-                                if area > 500:  # Asegurándonos de que el contorno es lo suficientemente grande
-                                    bbox = cv2.boundingRect(contorno)
-                                    x, y, w, h = bbox
+                            # Posición de la primera línea punteada en la mitad del fragmento 1
+                            linea2_y = fragmento_3[0] 
+                            # Posición de la segunda línea punteada en la mitad del fragmento 2
+                            linea3_y = fragmento_3[1] 
 
-                                    M = cv2.moments(contorno)
-                                    if M["m00"] != 0:
-                                        cX = int(M["m10"] / M["m00"])  # Centroide x del contorno
-                                        cm_to_pixels = 20  # Suponiendo que 1 cm equivale a 20 píxeles
+                            # Dibujar la primera línea punteada
+                            for i in range(x, x + w, 20):
+                                cv2.line(overlay, (i, linea2_y), (i + 10, linea2_y), (0, 0, 0), 2)
 
-                                        # Antigua línea izquierda ahora como línea derecha
-                                        new_right_line_x = cX - (3 * cm_to_pixels)
-                                        # Nueva línea izquierda, 2 cm a la izquierda de la nueva línea derecha
-                                        new_left_line_x = new_right_line_x - (3 * cm_to_pixels)
+                            # Dibujar la segunda línea punteada
+                            for i in range(x, x + w, 20):
+                                cv2.line(overlay, (i, linea3_y), (i + 10, linea3_y), (0, 0, 0), 2)
 
-                                        # Dibuja las líneas blancas dentro del marco del contorno
-                                        cv2.line(overlay, (new_right_line_x, y), (new_right_line_x, y + h), (255, 255, 255), 2)
-                                        cv2.line(overlay, (new_left_line_x, y), (new_left_line_x, y + h), (255, 255, 255), 2)
+                            # Añadir el texto "DESLIZA" arriba del primer borde punteado
+                            cv2.putText(overlay, "DESLIZA", (x + 10, linea2_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 2)
 
-                                    # Posiciona y muestra el texto "DESLIZA!"
-                                    text_position = (x + w // 2 - 60, y + h + 20)  # Ajusta la posición del texto debajo del contorno
-                                    cv2.putText(overlay, "DESLIZA", text_position, cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
                         elif self.modo_visualizacion == 13:
-                            for contorno in contornos:
-                                area = cv2.contourArea(contorno)
-                                if area > 500:  # Asegurándonos de que el contorno es lo suficientemente grande
-                                    bbox = cv2.boundingRect(contorno)
-                                    x, y, w, h = bbox
+                            # Calcular la posición del arco en la parte superior derecha del área delimitada por el contorno verde
+                            arco_radio = 20  # Radio del arco
+                            center_x = x + w - 70  # Fijar el extremo derecho del arco al borde derecho del contorno verde
+                            center_y =fragmento_2[1] + arco_radio
 
-                                    M = cv2.moments(contorno)
-                                    if M["m00"] != 0:
-                                        cX = int(M["m10"] / M["m00"])  # Centroide x del contorno
-                                        cm_to_pixels = 20  # Suponiendo que 1 cm equivale a 20 píxeles
+                            # Dibujar el arco en la parte superior derecha del área delimitada por el contorno verde
+                            cv2.ellipse(overlay, (center_x, center_y), (arco_radio, 10), 0, 180, 360, (0, 0, 0), 4)
+                            cv2.putText(overlay, "ARCO EN BORDE DERECHO", (center_x - 50, center_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
-                                        # Calcula la posición de la línea derecha en base al centroide del contorno
-                                        right_line_x = cX - (3 * cm_to_pixels)  # Alineado con la definición del modo 11
+                        # PASO 4
+                        elif self.modo_visualizacion == 14:
+                            cv2.putText(overlay, "INDICAR AL PACIENTE QUE GIRE 45° A LA IZQUIERDA", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+                        
+                        elif self.modo_visualizacion == 15:
+                            # Calcular la posición del arco en el borde inferior del fragmento 2
+                            arco_radio = 30  # Radio del arco
+                            arco_x = x + w // 2  # Centro del borde inferior del fragmento 2
+                            arco_y = fragmento_1[1] + arco_radio  # Borde inferior del fragmento 2
 
-                                        # Posición del nuevo arco en la parte inferior de la línea derecha
-                                        arc_center_x = right_line_x
-                                        arc_center_y = y + h - 10  # Ajuste para posicionar el arco cerca del borde inferior de la línea
+                            # Dibujar el arco en el borde inferior del fragmento 2
+                            cv2.ellipse(overlay, (arco_x, arco_y), (arco_radio, 10), 0, 180, 360, (0, 0, 0), 4)
+                            cv2.putText(overlay, "ARCO EN BORDE INFERIOR", (arco_x - 50, arco_y - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
-            alpha = 0.4
-            cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+                        elif self.modo_visualizacion == 16:
+                            # Posición de la primera línea punteada en la mitad del fragmento 1
+                            linea2_y = fragmento_2[0] + (fragmento_2[1] - fragmento_2[0]) // 2
+                            # Posición de la segunda línea punteada en la mitad del fragmento 2
+                            linea3_y = fragmento_3[0] + (fragmento_3[1] - fragmento_3[0]) // 2
 
-            # Convertir el frame a textura para Kivy
-            buf1 = cv2.flip(frame, 0)
-            buf = buf1.tobytes()
-            image_texture = Texture.create(size=(frame.shape[1], frame.shape[0]), colorfmt='bgr')
-            image_texture.blit_buffer(buf, colorfmt='bgr', bufferfmt='ubyte')
-            self.camera_widget.texture = image_texture
+                            # Dibujar la primera línea punteada
+                            for i in range(x, x + w, 20):
+                                cv2.line(overlay, (i, linea2_y), (i + 10, linea2_y), (0, 0, 0), 2)
+
+                            # Dibujar la segunda línea punteada
+                            for i in range(x, x + w, 20):
+                                cv2.line(overlay, (i, linea3_y), (i + 10, linea3_y), (0, 0, 0), 2)
+
+                            # Añadir el texto "DESLIZA" arriba del primer borde punteado
+                            cv2.putText(overlay, "DESLIZA", (x + 10, linea2_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 2)
+                        
+                        elif self.modo_visualizacion == 17:
+                            # Calcular la posición del arco en la parte superior derecha del área delimitada por el contorno verde
+                            arco_radio = 30  # Radio del arco
+                            center_x = x + w - 70  # Fijar el extremo derecho del arco al borde derecho del contorno verde
+                            center_y = (fragmento_2[0] + 30)
+
+                            # Dibujar el arco en la parte superior derecha del área delimitada por el contorno verde
+                            cv2.ellipse(overlay, (center_x, center_y), (arco_radio, 10), 0, 180, 360, (0, 0, 0), 4)
+                            cv2.putText(overlay, "ARCO", (center_x - 50, center_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+
+                        # PASO 5
+                        elif self.modo_visualizacion == 18:
+                            topmost = tuple(contorno[contorno[:, :, 1].argmin()][0])
+                            bbox = cv2.boundingRect(contorno)
+                            center_y = bbox[0] + bbox[2] // 3
+                            center_x = topmost[1] + 50  # Incrementado el desplazamiento vertical para asegurar que el arco está debajo de la línea superior
+
+                            # Dibuja el arco centrado horizontalmente en la parte superior ajustada
+                            cv2.ellipse(overlay, (center_y, center_x), (30, 10), 270, 0, 180, (0, 0, 0), 4)
+                            cv2.putText(overlay, "ARCO", (center_y - 50, center_x - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+
+                        # PASO 6
+                        elif self.modo_visualizacion == 19:
+                            cv2.putText(overlay, "INDICAR AL PACIENTE QUE SE PONGA DE PIE", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+
+                        elif self.modo_visualizacion == 20:
+                            # Calcular la posición del arco en la mitad del borde superior del fragmento 1
+                            arco_radio = 20  # Radio del arco (ajustado para hacerlo más pequeño)
+                            arco_x = x + w // 2  # Centro del borde superior del fragmento 1
+                            arco_y = fragmento_1[0] + 20
+
+                            # Dibujar el arco en la mitad del borde superior del fragmento 1
+                            cv2.ellipse(overlay, (arco_x, arco_y), (arco_radio, 7), 0, 180, 360, (0, 0, 0), 4)
+                            cv2.putText(overlay, "ARCO", (arco_x - 20, arco_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)             
+                        
+                        elif self.modo_visualizacion == 21:
+                            # Dibujar dos líneas punteadas verticales
+                            linea1_x = seccion_2[0]
+                            linea2_x = seccion_2[1] 
+                            linea_y_start = fragmento_1[0]
+                            linea_y_end = fragmento_3[1]
+
+                            # Dibujar la primera línea punteada vertical
+                            for i in range(linea_y_start, linea_y_end, 20):
+                                cv2.line(overlay, (linea1_x, i), (linea1_x, i + 10), (0, 0, 0), 2)
+
+                            # Añadir el texto "DESLIZA" arriba de la primera línea punteada y paralelo a la línea
+                            cv2.putText(overlay, "DESLIZA", (linea1_x - 30, linea_y_start - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 2, lineType=cv2.LINE_AA)
+
+                            # Dibujar la segunda línea punteada vertical
+                            for i in range(linea_y_start, linea_y_end, 20):
+                                cv2.line(overlay, (linea2_x, i), (linea2_x, i + 10), (0, 0, 0), 2) 
+
+                        elif self.modo_visualizacion == 22:
+                            # Calcular la posición del arco en el centro del fragmento 3
+                            arco_radio = 20  # Radio del arco (ajustado para hacerlo más pequeño)
+                            arco_x = x + w // 2  # Centro horizontal del fragmento 3
+                            arco_y = fragmento_3[0] + (fragmento_3[1] - fragmento_3[0]) // 2  # Centro vertical del fragmento 3
+
+                            # Dibujar el arco en el centro del fragmento 3
+                            cv2.ellipse(overlay, (arco_x, arco_y), (arco_radio, 7), 0, 180, 360, (0, 0, 0), 4)
+                            cv2.putText(overlay, "ARCO", (arco_x - 20, arco_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+
+                        elif self.modo_visualizacion == 23:
+                            cv2.putText(overlay, "HA CULMINADO CON LOS PASOS DE PROTOCOLO VSI", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+
+
+                alpha = 0.4
+                cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+
+                # Convertir el frame a textura para Kivy
+                buf1 = cv2.flip(frame, 0)
+                buf = buf1.tobytes()
+                image_texture = Texture.create(size=(frame.shape[1], frame.shape[0]), colorfmt='bgr')
+                image_texture.blit_buffer(buf, colorfmt='bgr', bufferfmt='ubyte')
+                self.camera_widget.texture = image_texture
 
 # Pantalla de registro
 class RegisterScreen(Screen):
